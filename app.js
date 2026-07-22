@@ -1,212 +1,35 @@
-
-const APP_VERSION = "7.0";
-const DRAFT_KEY = "hokuto_ai_v7_draft";
-const RECORDS_KEY = "hokuto_ai_v7_records";
-const $ = (id) => document.getElementById(id);
-let startedAt = null;
-let timer = null;
-
-const fieldIds = [
-  "playDate","storeName","machineName","machineNo","aiRank","aiDecision",
-  "startTime","startRotation","startTotalHits","startFirstHits",
-  "cashInvestment","ballInvestment","recoveredBalls","cashRecovery","exchangeRate",
-  "endTime","endRotation","stopReason","resultJudgement","notes"
-];
-
-function todayLocal(){
-  const d=new Date(); d.setMinutes(d.getMinutes()-d.getTimezoneOffset());
-  return d.toISOString().slice(0,10);
-}
-function nowTime(){return new Date().toTimeString().slice(0,5)}
-function num(v){const n=Number(v); return Number.isFinite(n)?n:0}
-function yen(v){return `${Math.trunc(v).toLocaleString("ja-JP")}円`}
-function uid(){return `${Date.now()}-${Math.random().toString(16).slice(2)}`}
-
-function collectHits(){
-  return [...document.querySelectorAll(".hit-item")].map((el,i)=>({
-    hit_no:i+1,
-    hit_rotation:num(el.querySelector(".hit-rotation").value),
-    investment_total_yen:num(el.querySelector(".hit-investment").value),
-    rush:el.querySelector(".hit-rush").value,
-    chain_count:num(el.querySelector(".hit-chain").value),
-    acquired_balls:num(el.querySelector(".hit-balls").value),
-    after_hit_rotation:num(el.querySelector(".hit-after-rotation").value)
-  }));
-}
-function calcProfit(){
-  const cashInv=num($("cashInvestment").value);
-  const recovered=num($("recoveredBalls").value);
-  const cashRec=num($("cashRecovery").value);
-  const rate=Math.max(num($("exchangeRate").value),1);
-  const converted = cashRec>0 ? cashRec : recovered/rate*1000;
-  return Math.trunc(converted-cashInv);
-}
-function collectRecord(){
-  const profit=calcProfit();
-  const autoJudgement=profit>0?"勝ち":profit<0?"負け":"引き分け";
-  return {
-    app_version:APP_VERSION,
-    record_id:$("recordForm").dataset.recordId||uid(),
-    saved_at:new Date().toISOString(),
-    play_date:$("playDate").value,
-    store_name:$("storeName").value.trim(),
-    machine_name:$("machineName").value.trim(),
-    machine_no:num($("machineNo").value),
-    ai_rank:num($("aiRank").value),
-    ai_decision:$("aiDecision").value,
-    start_time:$("startTime").value,
-    start_rotation:num($("startRotation").value),
-    start_total_hits:num($("startTotalHits").value),
-    start_first_hits:num($("startFirstHits").value),
-    hits:collectHits(),
-    cash_investment_yen:num($("cashInvestment").value),
-    ball_investment:num($("ballInvestment").value),
-    recovered_balls:num($("recoveredBalls").value),
-    cash_recovery_yen:num($("cashRecovery").value),
-    exchange_rate_balls_per_1000:num($("exchangeRate").value),
-    calculated_profit_yen:profit,
-    end_time:$("endTime").value,
-    end_rotation:num($("endRotation").value),
-    stop_reason:$("stopReason").value,
-    result_judgement:$("resultJudgement").value||autoJudgement,
-    notes:$("notes").value.trim()
-  };
-}
-function addHit(hit={}){
-  const node=$("hitTemplate").content.cloneNode(true);
-  const item=node.querySelector(".hit-item");
-  item.querySelector(".hit-rotation").value=hit.hit_rotation||"";
-  item.querySelector(".hit-investment").value=hit.investment_total_yen||"";
-  item.querySelector(".hit-rush").value=hit.rush??"";
-  item.querySelector(".hit-chain").value=hit.chain_count||1;
-  item.querySelector(".hit-balls").value=hit.acquired_balls||"";
-  item.querySelector(".hit-after-rotation").value=hit.after_hit_rotation||"";
-  item.querySelector(".remove-hit").addEventListener("click",()=>{item.remove(); renumberHits(); saveDraft();});
-  item.querySelectorAll("input,select").forEach(x=>x.addEventListener("input",saveDraft));
-  $("hitList").appendChild(node); renumberHits(); saveDraft();
-}
-function renumberHits(){
-  [...document.querySelectorAll(".hit-item")].forEach((el,i)=>el.querySelector(".hit-title").textContent=`当たり ${i+1}`);
-}
-function saveDraft(){
-  const record=collectRecord();
-  localStorage.setItem(DRAFT_KEY,JSON.stringify(record));
-  $("saveState").textContent="保存済み";
-  updateSummary();
-  setTimeout(()=>$("saveState").textContent="自動保存",900);
-}
-function loadDraft(){
-  const raw=localStorage.getItem(DRAFT_KEY);
-  if(!raw){$("playDate").value=todayLocal(); return;}
-  try{
-    const r=JSON.parse(raw);
-    $("recordForm").dataset.recordId=r.record_id||uid();
-    fieldIds.forEach(id=>{
-      const map={
-        playDate:"play_date",storeName:"store_name",machineName:"machine_name",machineNo:"machine_no",
-        aiRank:"ai_rank",aiDecision:"ai_decision",startTime:"start_time",startRotation:"start_rotation",
-        startTotalHits:"start_total_hits",startFirstHits:"start_first_hits",cashInvestment:"cash_investment_yen",
-        ballInvestment:"ball_investment",recoveredBalls:"recovered_balls",cashRecovery:"cash_recovery_yen",
-        exchangeRate:"exchange_rate_balls_per_1000",endTime:"end_time",endRotation:"end_rotation",
-        stopReason:"stop_reason",resultJudgement:"result_judgement",notes:"notes"
-      };
-      if(r[map[id]]!==undefined && r[map[id]]!==null) $(id).value=r[map[id]];
-    });
-    (r.hits||[]).forEach(addHit);
-  }catch(e){console.warn(e); $("playDate").value=todayLocal();}
-}
-function updateSummary(){
-  const machine=$("machineNo").value;
-  $("heroMachine").textContent=machine?`${machine}番台`:"未入力";
-  const profit=calcProfit();
-  $("heroProfit").textContent=(profit>0?"+":"")+yen(profit);
-  $("calculatedProfit").value=(profit>0?"+":"")+yen(profit);
-  $("heroProfit").style.color=profit>0?"#86efac":profit<0?"#fca5a5":"#fff";
-}
-function startPlay(){
-  if(!$("machineNo").value){alert("台番号を入力してください"); return;}
-  if(!$("startTime").value)$("startTime").value=nowTime();
-  startedAt=new Date();
-  $("heroStatus").textContent="実戦中";
-  clearInterval(timer); timer=setInterval(updateElapsed,1000); saveDraft();
-}
-function updateElapsed(){
-  if(!startedAt)return;
-  const sec=Math.floor((Date.now()-startedAt.getTime())/1000);
-  $("heroElapsed").textContent=`${String(Math.floor(sec/3600)).padStart(2,"0")}:${String(Math.floor(sec%3600/60)).padStart(2,"0")}`;
-}
-function records(){try{return JSON.parse(localStorage.getItem(RECORDS_KEY)||"[]")}catch{return []}}
-function saveFinished(){
-  if(!$("playDate").value||!$("machineNo").value){alert("実戦日と台番号は必須です");return}
-  if(!$("endTime").value)$("endTime").value=nowTime();
-  const r=collectRecord();
-  let list=records().filter(x=>x.record_id!==r.record_id);
-  list.unshift(r); localStorage.setItem(RECORDS_KEY,JSON.stringify(list));
-  localStorage.setItem(DRAFT_KEY,JSON.stringify(r));
-  $("heroStatus").textContent="実戦終了・保存済み";
-  renderSaved(); saveDraft();
-  alert("実戦記録をiPhone内に保存しました。続けて「CSVを共有／保存」を押してください。");
-}
-const csvHeaders=[
-"app_version","record_id","saved_at","play_date","store_name","machine_name","machine_no","ai_rank","ai_decision",
-"start_time","start_rotation","start_total_hits","start_first_hits","hit_count","hit_details_json",
-"cash_investment_yen","ball_investment","recovered_balls","cash_recovery_yen","exchange_rate_balls_per_1000",
-"calculated_profit_yen","end_time","end_rotation","stop_reason","result_judgement","notes"
-];
-function csvEscape(v){
-  const s=typeof v==="object"?JSON.stringify(v):String(v??"");
-  return `"${s.replaceAll('"','""')}"`;
-}
-function toCSV(list){
-  return "\ufeff"+csvHeaders.join(",")+"\n"+list.map(r=>{
-    const row={...r,hit_count:(r.hits||[]).length,hit_details_json:r.hits||[]};
-    return csvHeaders.map(h=>csvEscape(row[h])).join(",");
-  }).join("\n");
-}
-async function shareFile(content,name,type){
-  const file=new File([content],name,{type});
-  if(navigator.canShare && navigator.canShare({files:[file]})){
-    await navigator.share({files:[file],title:"北斗AI 実戦記録"});
-  }else{
-    const a=document.createElement("a");
-    a.href=URL.createObjectURL(file);a.download=name;a.click();
-    setTimeout(()=>URL.revokeObjectURL(a.href),2000);
-  }
-}
-async function exportCurrent(){
-  const r=collectRecord();
-  await shareFile(toCSV([r]),`hokuto_practice_${r.play_date||todayLocal()}_dai${r.machine_no||0}.csv`,"text/csv");
-}
-async function exportJSON(){
-  const r=collectRecord();
-  await shareFile(JSON.stringify(r,null,2),`hokuto_practice_${r.play_date||todayLocal()}_dai${r.machine_no||0}.json`,"application/json");
-}
-async function exportAll(){
-  const list=records(); if(!list.length){alert("保存済み記録がありません");return}
-  await shareFile(toCSV(list),`hokuto_practice_all_${todayLocal()}.csv`,"text/csv");
-}
-function newRecord(){
-  if(!confirm("入力中の内容を消して新しい記録を開始しますか？"))return;
-  localStorage.removeItem(DRAFT_KEY); location.reload();
-}
-function renderSaved(){
-  const root=$("savedRecords"); root.innerHTML="";
-  const list=records();
-  if(!list.length){root.innerHTML='<p class="hint">まだ保存済み記録はありません。</p>';return}
-  list.slice(0,10).forEach(r=>{
-    const d=document.createElement("div");d.className="saved-item";
-    d.innerHTML=`<strong>${r.play_date}　${r.machine_no}番台　${r.calculated_profit_yen>0?"+":""}${yen(r.calculated_profit_yen)}</strong>
-    <div class="saved-meta">${r.result_judgement}／当たり${(r.hits||[]).length}回／${r.ai_decision||"AI判定なし"}</div>`;
-    root.appendChild(d);
-  });
-}
-fieldIds.forEach(id=>$(id).addEventListener("input",saveDraft));
-$("addHitButton").addEventListener("click",()=>addHit());
-$("startButton").addEventListener("click",startPlay);
-$("finishButton").addEventListener("click",saveFinished);
-$("shareButton").addEventListener("click",exportCurrent);
-$("jsonButton").addEventListener("click",exportJSON);
-$("exportAllButton").addEventListener("click",exportAll);
-$("newButton").addEventListener("click",newRecord);
-loadDraft(); updateSummary(); renderSaved();
-if("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js");
+const VERSION="7.0";const K={rank:"hokuto_v7_rank",records:"hokuto_v7_records",draft:"hokuto_v7_draft",settings:"hokuto_v7_settings"};const $=id=>document.getElementById(id);let cash=0;
+const machines=[11,12,13,14,15,16,17,18,19,20,26,27,28,29,30,31,32,33,34,35,36];
+function today(){const d=new Date();d.setMinutes(d.getMinutes()-d.getTimezoneOffset());return d.toISOString().slice(0,10)}function timeNow(){return new Date().toTimeString().slice(0,5)}function n(v){const x=Number(v);return Number.isFinite(x)?x:0}function yen(v){return `${Math.trunc(v).toLocaleString("ja-JP")}円`}function uid(){return `${Date.now()}-${Math.random().toString(16).slice(2)}`}
+function get(k,def){try{return JSON.parse(localStorage.getItem(k))??def}catch{return def}}function set(k,v){localStorage.setItem(k,JSON.stringify(v))}
+function nav(view){document.querySelectorAll(".view").forEach(x=>x.classList.toggle("active",x.id===`view-${view}`));document.querySelectorAll(".bottom-nav button").forEach(x=>x.classList.toggle("active",x.dataset.view===view));if(view==="history")renderHistory()}
+document.querySelectorAll(".bottom-nav button").forEach(b=>b.onclick=()=>nav(b.dataset.view));window.addEventListener("online",status);window.addEventListener("offline",status);function status(){$("onlineBadge").textContent=navigator.onLine?"オンライン":"オフライン";$("onlineBadge").style.color=navigator.onLine?"#86efac":"#fca5a5"}status();
+machines.forEach(m=>{const o=document.createElement("option");o.value=m;o.textContent=`${m}番台`;$("machineNo").appendChild(o)});$("playDate").value=today();
+function parseCSV(text){const rows=[];let row=[],cell="",q=false;for(let i=0;i<text.length;i++){const c=text[i],nx=text[i+1];if(c=='"'&&q&&nx=='"'){cell+='"';i++;}else if(c=='"'){q=!q;}else if(c==','&&!q){row.push(cell);cell="";}else if((c=='\n'||c=='\r')&&!q){if(c=='\r'&&nx=='\n')i++;row.push(cell);if(row.some(x=>x!==""))rows.push(row);row=[];cell="";}else cell+=c}row.push(cell);if(row.some(x=>x!==""))rows.push(row);const h=rows.shift().map(x=>x.trim());return rows.map(r=>Object.fromEntries(h.map((x,i)=>[x,(r[i]||"").trim()])))}
+function pick(o,names){for(const x of names)if(o[x]!==undefined&&o[x]!=="")return o[x];return ""}
+$("rankingFile").onchange=async e=>{const f=e.target.files[0];if(!f)return;const rows=parseCSV(await f.text());const data=rows.map((r,i)=>({date:pick(r,["予測対象日","対象日","日付"]),rank:n(pick(r,["V5参考順位","順位","AI順位"]))||i+1,machine:n(pick(r,["現在台番号","台番号","分析用台番号"])),score:n(pick(r,["V5参考スコア","V5総合スコア","予測点","期待値点"])),decision:pick(r,["打つ日判定","最終判定","推奨区分","AI判定"]),confidence:pick(r,["信頼度","信頼度星"]),reason:pick(r,["見送り理由","判定理由","理由"])})).filter(x=>x.machine);set(K.rank,data);renderRank();alert(`${data.length}台のランキングを保存しました`)}
+function renderRank(){const d=get(K.rank,[]).sort((a,b)=>a.rank-b.rank);$("rankingList").innerHTML="";if(!d.length){$("rankingList").innerHTML='<div class="form-card"><p class="muted">ランキング未登録。「ランキング読込」からCSVを選択してください。</p></div>';$("predictionDate").textContent="未登録";$("finalDecision").textContent="ランキング未読込";$("decisionReason").textContent="V6.4のランキングCSVを読み込んでください";return}
+$("predictionDate").textContent=d[0].date||"日付不明";const top=d[0];$("finalDecision").textContent=top.decision||"参考順位";$("decisionReason").textContent=top.reason||`Top1は${top.machine}番台`;const ban=$("decisionBanner");ban.className="decision-banner "+((top.decision||"").includes("見送り")?"bad":(top.decision||"").includes("慎重")?"warn":"good");
+d.slice(0,10).forEach(x=>{const el=document.createElement("article");el.className="ranking-item";el.innerHTML=`<div class="rank-no">${x.rank}</div><div><div class="rank-machine">${x.machine}番台</div><div class="rank-meta">${x.decision||"参考"} ${x.confidence||""}</div></div><div class="rank-score"><strong>${x.score?Math.round(x.score*100)/100:"—"}</strong><span>参考点</span></div>`;el.onclick=()=>{nav("play");$("machineNo").value=x.machine;$("aiRank").value=x.rank;$("aiDecision").value=["条件付き実戦候補","慎重に実戦","見送り"].includes(x.decision)?x.decision:"";saveDraft()};$("rankingList").appendChild(el)})}renderRank();
+function addHit(v={}){const node=$("hitTemplate").content.cloneNode(true),el=node.querySelector(".hit-card");el.querySelector(".hit-spin").value=v.spin||"";el.querySelector(".hit-investment").value=v.investment||"";el.querySelector(".hit-rush").value=v.rush||"";el.querySelector(".hit-chain").value=v.chain||1;el.querySelector(".hit-balls").value=v.balls||"";el.querySelector(".hit-after").value=v.after||"";el.querySelector(".remove-hit").onclick=()=>{el.remove();renum();saveDraft()};el.querySelectorAll("input,select").forEach(x=>x.oninput=saveDraft);$("hitList").appendChild(node);renum();saveDraft()}
+function renum(){document.querySelectorAll(".hit-card").forEach((x,i)=>x.querySelector(".hit-title").textContent=`当たり ${i+1}`)}$("addHit").onclick=()=>addHit();
+function hits(){return [...document.querySelectorAll(".hit-card")].map((x,i)=>({no:i+1,spin:n(x.querySelector(".hit-spin").value),investment:n(x.querySelector(".hit-investment").value),rush:x.querySelector(".hit-rush").value,chain:n(x.querySelector(".hit-chain").value),balls:n(x.querySelector(".hit-balls").value),after:n(x.querySelector(".hit-after").value)}))}
+function settings(){return {...{budget:50000,exchangeRate:225},...get(K.settings,{})}}function profit(){const s=settings();const returned=n($("cashReturn").value)||n($("recoveredBalls").value)/Math.max(s.exchangeRate,1)*1000;return Math.trunc(returned-cash)}
+function rotationRate(){const spin=Math.max(0,n($("currentSpin").value)-n($("startSpin").value));return cash>0?spin/(cash/1000):0}
+function update(){ $("cashInvestmentDisplay").textContent=yen(cash);const rr=rotationRate();$("rotationRate").textContent=rr?`${rr.toFixed(1)}回/千円`:"未計算";const s=settings(),j=$("judgementCard");let t="継続判断待ち",r="入力値を確認してください",c="";if(cash>=s.budget){t="予算上限到達";r="追加投資を止め、終了を検討してください";c="bad"}else if(rr&&rr<14){t="回転率注意";r="回転率が低いため続行は慎重に判断してください";c="warn"}else if($("aiDecision").value==="見送り"){t="AI見送り台";r="実戦理由をメモし、投資上限を厳守してください";c="bad"}else if(cash>0){t="管理範囲内";r=`現在の参考収支 ${profit()>=0?"+":""}${yen(profit())}`;c="good"}$("judgementText").textContent=t;$("judgementReason").textContent=r;j.className="judgement-card "+c}
+document.querySelectorAll("[data-add-cash]").forEach(b=>b.onclick=()=>{cash=Math.max(0,cash+n(b.dataset.addCash));update();saveDraft()});
+["currentSpin","startSpin","recoveredBalls","cashReturn","aiDecision","machineNo","aiRank","startTime","endTime","endSpin","stopReason","memo","ballInvestment"].forEach(id=>$(id).addEventListener("input",()=>{update();saveDraft()}));
+$("startPlay").onclick=()=>{if(!$("machineNo").value)return alert("台番号を選択してください");if(!$("startTime").value)$("startTime").value=timeNow();saveDraft();alert("実戦開始を記録しました")};
+function record(){const p=profit();return{id:$("playForm").dataset.id||uid(),version:VERSION,savedAt:new Date().toISOString(),date:$("playDate").value,machine:n($("machineNo").value),aiRank:n($("aiRank").value),aiDecision:$("aiDecision").value,startTime:$("startTime").value,startSpin:n($("startSpin").value),currentSpin:n($("currentSpin").value),cashInvestment:cash,ballInvestment:n($("ballInvestment").value),hits:hits(),endTime:$("endTime").value,endSpin:n($("endSpin").value),recoveredBalls:n($("recoveredBalls").value),cashReturn:n($("cashReturn").value),profit:p,stopReason:$("stopReason").value,result:p>0?"勝ち":p<0?"負け":"引き分け",memo:$("memo").value.trim()}}
+function saveDraft(){set(K.draft,record())}function loadDraft(){const d=get(K.draft,null);if(!d)return;$("playForm").dataset.id=d.id||uid();$("playDate").value=d.date||today();$("machineNo").value=d.machine||"";$("aiRank").value=d.aiRank||"";$("aiDecision").value=d.aiDecision||"";$("startTime").value=d.startTime||"";$("startSpin").value=d.startSpin||"";$("currentSpin").value=d.currentSpin||"";cash=n(d.cashInvestment);$("ballInvestment").value=d.ballInvestment||"";$("endTime").value=d.endTime||"";$("endSpin").value=d.endSpin||"";$("recoveredBalls").value=d.recoveredBalls||"";$("cashReturn").value=d.cashReturn||"";$("stopReason").value=d.stopReason||"";$("memo").value=d.memo||"";(d.hits||[]).forEach(addHit);update()}loadDraft();
+$("playForm").onsubmit=e=>{e.preventDefault();if(!$("machineNo").value)return alert("台番号を選択してください");if(!$("endTime").value)$("endTime").value=timeNow();const r=record();let list=get(K.records,[]).filter(x=>x.id!==r.id);list.unshift(r);set(K.records,list);set(K.draft,r);renderHistory();alert("実戦記録を保存しました。履歴タブからCSVを書き出せます。");nav("history")}
+$("resetForm").onclick=()=>{if(!confirm("入力中の内容を消しますか？"))return;localStorage.removeItem(K.draft);location.reload()}
+function renderHistory(){const list=get(K.records,[]),root=$("historyList");root.innerHTML="";const wins=list.filter(x=>x.profit>0).length,total=list.reduce((a,x)=>a+n(x.profit),0);$("historySummary").innerHTML=`<div><strong>${list.length}</strong><span>実戦回数</span></div><div><strong>${list.length?Math.round(wins/list.length*100):0}%</strong><span>勝率</span></div><div><strong>${total>=0?"+":""}${yen(total)}</strong><span>累計収支</span></div>`;if(!list.length){root.innerHTML='<div class="form-card"><p class="muted">保存済み実戦記録はありません。</p></div>';return}list.forEach(x=>{const el=document.createElement("article");el.className="history-item";el.innerHTML=`<div class="section-title"><strong>${x.date}　${x.machine}番台</strong><span class="profit ${x.profit>=0?"positive":"negative"}">${x.profit>0?"+":""}${yen(x.profit)}</span></div><div class="history-meta">${x.result}／AI順位 ${x.aiRank||"—"}／当たり${(x.hits||[]).length}回／投資${yen(x.cashInvestment)}</div>`;root.appendChild(el)})}renderHistory();
+const headers=["app_version","record_id","saved_at","play_date","machine_no","ai_rank","ai_decision","start_time","start_rotation","current_rotation","cash_investment_yen","ball_investment","hit_count","hit_details_json","end_time","end_rotation","recovered_balls","cash_recovery_yen","exchange_rate_balls_per_1000","calculated_profit_yen","stop_reason","result_judgement","notes"];
+function esc(v){const s=typeof v==="object"?JSON.stringify(v):String(v??"");return `"${s.replaceAll('"','""')}"`}function csv(list){const s=settings();return "\ufeff"+headers.join(",")+"\n"+list.map(x=>{const o={app_version:x.version,record_id:x.id,saved_at:x.savedAt,play_date:x.date,machine_no:x.machine,ai_rank:x.aiRank,ai_decision:x.aiDecision,start_time:x.startTime,start_rotation:x.startSpin,current_rotation:x.currentSpin,cash_investment_yen:x.cashInvestment,ball_investment:x.ballInvestment,hit_count:(x.hits||[]).length,hit_details_json:x.hits,end_time:x.endTime,end_rotation:x.endSpin,recovered_balls:x.recoveredBalls,cash_recovery_yen:x.cashReturn,exchange_rate_balls_per_1000:s.exchangeRate,calculated_profit_yen:x.profit,stop_reason:x.stopReason,result_judgement:x.result,notes:x.memo};return headers.map(h=>esc(o[h])).join(",")}).join("\n")}
+async function share(content,name,type){const f=new File([content],name,{type});if(navigator.canShare&&navigator.canShare({files:[f]}))await navigator.share({files:[f],title:"北斗AI V7.0"});else{const a=document.createElement("a");a.href=URL.createObjectURL(f);a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),2000)}}
+$("exportCsv").onclick=()=>{const l=get(K.records,[]);if(!l.length)return alert("記録がありません");share(csv(l),`hokuto_practice_all_${today()}.csv`,"text/csv")};
+$("budgetLimit").value=settings().budget;$("exchangeRate").value=settings().exchangeRate;$("saveSettings").onclick=()=>{set(K.settings,{budget:n($("budgetLimit").value),exchangeRate:n($("exchangeRate").value)});update();alert("設定を保存しました")};
+$("exportBackup").onclick=()=>share(JSON.stringify({version:VERSION,rank:get(K.rank,[]),records:get(K.records,[]),draft:get(K.draft,null),settings:settings()},null,2),`hokuto_v7_backup_${today()}.json`,"application/json");
+$("importBackup").onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const d=JSON.parse(await f.text());if(d.rank)set(K.rank,d.rank);if(d.records)set(K.records,d.records);if(d.draft)set(K.draft,d.draft);if(d.settings)set(K.settings,d.settings);alert("復元しました");location.reload()}catch{alert("復元に失敗しました")}};
+if("serviceWorker"in navigator)navigator.serviceWorker.register("service-worker.js");
