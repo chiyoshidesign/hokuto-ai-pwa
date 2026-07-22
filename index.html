@@ -1,209 +1,164 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#10141c">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#101827">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="北斗AI">
-  <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="styles.css">
-  <title>北斗AI実戦アプリ</title>
+  <title>北斗AI 実戦記録 V7.0</title>
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="apple-touch-icon" href="./icons/icon-192.png">
+  <link rel="stylesheet" href="./style.css">
 </head>
 <body>
-  <header class="app-header">
-    <div>
-      <p class="eyebrow">HOKUTO 11</p>
-      <h1>北斗AI 実戦アプリ</h1>
+<header class="app-header">
+  <div>
+    <div class="eyebrow">HOKUTO AI V7.0</div>
+    <h1>実戦記録</h1>
+  </div>
+  <span id="saveState" class="save-state">自動保存</span>
+</header>
+
+<main>
+  <section class="card hero">
+    <div class="hero-row">
+      <div>
+        <span class="label">本日の台</span>
+        <strong id="heroMachine">未入力</strong>
+      </div>
+      <div>
+        <span class="label">現在収支</span>
+        <strong id="heroProfit">0円</strong>
+      </div>
     </div>
-    <span id="onlineBadge" class="badge">確認中</span>
-  </header>
+    <div class="hero-row compact">
+      <span id="heroStatus">入力を開始してください</span>
+      <span id="heroElapsed">--:--</span>
+    </div>
+  </section>
 
-  <main>
-    <section id="view-home" class="view active">
-      <div class="hero-card">
-        <div>
-          <p class="muted">予測対象日</p>
-          <h2 id="predictionDate">未登録</h2>
-        </div>
-        <div class="model-label" id="modelVersion">V3.0準備版</div>
-      </div>
-
-      <div class="section-title">
-        <h2>本日の狙い台</h2>
-        <button class="text-button" id="openRankingImport">ランキング読込</button>
-      </div>
-      <div id="rankingList" class="ranking-list"></div>
-
-      <div class="notice">
-        本アプリの判定は記録支援用です。大当たりや利益を保証するものではありません。
-      </div>
-    </section>
-
-    <section id="view-play" class="view">
-      <div class="section-title">
-        <h2>実戦入力</h2>
-        <button class="text-button danger-text" id="resetForm">入力をリセット</button>
-      </div>
-
-      <form id="playForm">
-        <div class="form-card">
-          <h3>着席情報</h3>
-          <div class="grid two">
-            <label>実戦日
-              <input type="date" id="playDate" required>
-            </label>
-            <label>台番号
-              <select id="machineNo" required></select>
-            </label>
-            <label>AI順位
-              <select id="aiRank">
-                <option value="">未指定</option>
-                <option>Top1</option><option>Top2</option><option>Top3</option>
-                <option>Top4</option><option>Top5</option><option>ランキング外</option>
-              </select>
-            </label>
-            <label>着席回転数
-              <input type="number" id="startSpin" min="0" inputmode="numeric" placeholder="例 120">
-            </label>
-          </div>
-        </div>
-
-        <div class="form-card">
-          <h3>投資・回転</h3>
-          <div class="metric-row">
-            <div><span>現金投資</span><strong id="cashInvestmentDisplay">0円</strong></div>
-            <div class="quick-buttons">
-              <button type="button" data-add-cash="1000">+1,000</button>
-              <button type="button" data-add-cash="5000">+5,000</button>
-              <button type="button" data-add-cash="-1000">−1,000</button>
-            </div>
-          </div>
-          <div class="grid two">
-            <label>現在回転数
-              <input type="number" id="currentSpin" min="0" inputmode="numeric">
-            </label>
-            <label>持ち玉投資
-              <input type="number" id="ballInvestment" min="0" inputmode="numeric" placeholder="玉">
-            </label>
-          </div>
-          <div class="calculated">
-            <span>実測回転率</span>
-            <strong id="rotationRate">未計算</strong>
-          </div>
-        </div>
-
-        <div class="form-card">
-          <h3>当たり結果</h3>
-          <div class="grid two">
-            <label>初当たり回転数
-              <input type="number" id="firstHitSpin" min="0" inputmode="numeric">
-            </label>
-            <label>最大連チャン
-              <input type="number" id="maxChain" min="0" inputmode="numeric">
-            </label>
-            <label>RUSH結果
-              <select id="rushResult">
-                <option value="">未入力</option>
-                <option>突入</option>
-                <option>非突入・単発</option>
-                <option>初当たりなし</option>
-              </select>
-            </label>
-            <label>回収玉
-              <input type="number" id="recoveredBalls" min="0" inputmode="numeric">
-            </label>
-          </div>
-        </div>
-
-        <div class="form-card">
-          <h3>終了情報</h3>
-          <div class="grid two">
-            <label>離席回転数
-              <input type="number" id="endSpin" min="0" inputmode="numeric">
-            </label>
-            <label>換金額
-              <input type="number" id="cashReturn" min="0" inputmode="numeric" placeholder="円">
-            </label>
-          </div>
-          <label>終了理由
-            <select id="stopReason">
-              <option value="">選択してください</option>
-              <option>回らない</option><option>予算上限</option><option>時間切れ</option>
-              <option>RUSH終了後</option><option>100回転まで続行後</option>
-              <option>他台へ移動</option><option>閉店</option><option>その他</option>
-            </select>
-          </label>
-          <label>メモ
-            <textarea id="memo" rows="3" placeholder="ステージ癖、周辺状況、気付いた点など"></textarea>
-          </label>
-        </div>
-
-        <div class="judgement-card" id="judgementCard">
-          <span>現在の管理判定</span>
-          <strong id="judgementText">入力待ち</strong>
-          <small id="judgementReason">投資額と実測回転率から、予算管理上の注意を表示します。</small>
-        </div>
-
-        <button class="primary-button" type="submit">実戦記録を保存</button>
-      </form>
-    </section>
-
-    <section id="view-history" class="view">
-      <div class="section-title">
-        <h2>実戦履歴</h2>
-        <button class="text-button" id="exportCsv">CSV書き出し</button>
-      </div>
-      <div id="historySummary" class="summary-grid"></div>
-      <div id="historyList" class="history-list"></div>
-    </section>
-
-    <section id="view-settings" class="view">
-      <h2>設定</h2>
-      <div class="form-card">
-        <label>1日の現金予算上限
-          <input type="number" id="budgetLimit" min="0" step="1000" inputmode="numeric">
-        </label>
-        <label>交換時の1玉価値（円）
-          <input type="number" id="yenPerBall" min="0" step="0.01" inputmode="decimal">
-        </label>
-        <button class="secondary-button" id="saveSettings">設定を保存</button>
-      </div>
-      <div class="form-card">
-        <h3>データ管理</h3>
-        <button class="secondary-button" id="exportBackup">バックアップJSON</button>
-        <label class="file-label">バックアップを復元
-          <input type="file" id="importBackup" accept=".json">
+  <form id="recordForm" novalidate>
+    <section class="card">
+      <h2>基本情報</h2>
+      <div class="grid two">
+        <label>実戦日<input id="playDate" type="date" required></label>
+        <label>店舗<input id="storeName" type="text" value="グランワールドカップ本巣店"></label>
+        <label>機種<input id="machineName" type="text" value="北斗11"></label>
+        <label>現在台番号<input id="machineNo" type="number" inputmode="numeric" placeholder="14" required></label>
+        <label>AI順位<input id="aiRank" type="number" inputmode="numeric" min="1" max="21" placeholder="例：3"></label>
+        <label>AI判定
+          <select id="aiDecision">
+            <option value="">未選択</option>
+            <option>条件付き実戦候補</option>
+            <option>慎重に実戦</option>
+            <option>見送り</option>
+          </select>
         </label>
       </div>
-      <div class="form-card">
-        <h3>アプリについて</h3>
-        <p class="muted">初期版 v1.0。データはこのiPhone内に保存されます。履歴は定期的にCSVまたはJSONでバックアップしてください。</p>
+    </section>
+
+    <section class="card">
+      <h2>開始時</h2>
+      <div class="grid two">
+        <label>開始時刻<input id="startTime" type="time"></label>
+        <label>開始回転数<input id="startRotation" type="number" inputmode="numeric" min="0" placeholder="0"></label>
+        <label>開始時総大当り<input id="startTotalHits" type="number" inputmode="numeric" min="0" placeholder="0"></label>
+        <label>開始時初当り<input id="startFirstHits" type="number" inputmode="numeric" min="0" placeholder="0"></label>
+      </div>
+      <button class="primary" type="button" id="startButton">実戦開始</button>
+    </section>
+
+    <section class="card">
+      <div class="section-head">
+        <h2>当たり記録</h2>
+        <button class="small" type="button" id="addHitButton">＋ 当たり追加</button>
+      </div>
+      <div id="hitList" class="hit-list"></div>
+      <p class="hint">初当たりごとに追加します。RUSHなしは連チャン数「1」で記録できます。</p>
+    </section>
+
+    <section class="card">
+      <h2>投資・回収</h2>
+      <div class="grid two">
+        <label>現金投資（円）<input id="cashInvestment" type="number" inputmode="numeric" min="0" step="1000" placeholder="0"></label>
+        <label>持ち玉投資（玉）<input id="ballInvestment" type="number" inputmode="numeric" min="0" placeholder="0"></label>
+        <label>回収玉数<input id="recoveredBalls" type="number" inputmode="numeric" min="0" placeholder="0"></label>
+        <label>現金回収（円）<input id="cashRecovery" type="number" inputmode="numeric" min="0" placeholder="0"></label>
+        <label>交換率（玉/千円）<input id="exchangeRate" type="number" inputmode="decimal" min="1" step="0.1" value="225"></label>
+        <label>自動計算収支<input id="calculatedProfit" type="text" readonly value="0円"></label>
       </div>
     </section>
-  </main>
 
-  <nav class="bottom-nav">
-    <button data-view="home" class="active">予測</button>
-    <button data-view="play">実戦</button>
-    <button data-view="history">履歴</button>
-    <button data-view="settings">設定</button>
-  </nav>
-
-  <dialog id="rankingDialog">
-    <form method="dialog" class="dialog-card">
-      <h2>ランキングを読み込む</h2>
-      <p class="muted">V3.0のExcelから書き出すCSVに対応予定です。初期版では下記形式のCSVを読み込めます。</p>
-      <code>予測対象日,順位,台番号,予測点,推奨区分,モデル</code>
-      <input type="file" id="rankingFile" accept=".csv">
-      <div class="dialog-actions">
-        <button value="cancel" class="secondary-button">閉じる</button>
+    <section class="card">
+      <h2>終了時</h2>
+      <div class="grid two">
+        <label>終了時刻<input id="endTime" type="time"></label>
+        <label>終了回転数<input id="endRotation" type="number" inputmode="numeric" min="0" placeholder="0"></label>
+        <label>終了理由
+          <select id="stopReason">
+            <option value="">未選択</option>
+            <option>予算上限</option>
+            <option>回転率不足</option>
+            <option>時間終了</option>
+            <option>勝ち逃げ</option>
+            <option>持ち玉消滅</option>
+            <option>その他</option>
+          </select>
+        </label>
+        <label>最終判定
+          <select id="resultJudgement">
+            <option value="">自動判定</option>
+            <option>勝ち</option>
+            <option>負け</option>
+            <option>引き分け</option>
+          </select>
+        </label>
       </div>
-    </form>
-  </dialog>
+      <label>メモ<textarea id="notes" rows="4" placeholder="釘、回転率、演出、やめ判断など"></textarea></label>
+    </section>
 
-  <script src="app.js"></script>
+    <section class="card actions">
+      <button class="primary" type="button" id="finishButton">実戦終了・保存</button>
+      <button type="button" id="shareButton">CSVを共有／保存</button>
+      <button type="button" id="jsonButton">JSONバックアップ</button>
+      <button class="danger" type="button" id="newButton">新しい記録</button>
+    </section>
+
+    <section class="card">
+      <div class="section-head">
+        <h2>保存済み記録</h2>
+        <button class="small" type="button" id="exportAllButton">全件CSV</button>
+      </div>
+      <div id="savedRecords" class="saved-records"></div>
+    </section>
+  </form>
+</main>
+
+<template id="hitTemplate">
+  <article class="hit-item">
+    <div class="section-head">
+      <strong class="hit-title">当たり</strong>
+      <button type="button" class="small danger remove-hit">削除</button>
+    </div>
+    <div class="grid two">
+      <label>当選時回転数<input class="hit-rotation" type="number" inputmode="numeric" min="0"></label>
+      <label>追加投資累計（円）<input class="hit-investment" type="number" inputmode="numeric" min="0" step="1000"></label>
+      <label>RUSH
+        <select class="hit-rush">
+          <option value="">未選択</option>
+          <option value="1">突入</option>
+          <option value="0">非突入</option>
+        </select>
+      </label>
+      <label>連チャン数<input class="hit-chain" type="number" inputmode="numeric" min="1" value="1"></label>
+      <label>獲得出玉<input class="hit-balls" type="number" inputmode="numeric" min="0"></label>
+      <label>当たり後やめ回転<input class="hit-after-rotation" type="number" inputmode="numeric" min="0"></label>
+    </div>
+  </article>
+</template>
+
+<script src="./app.js"></script>
 </body>
 </html>
